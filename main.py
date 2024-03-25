@@ -37,11 +37,16 @@ folderModePath = 'Resources/Modes'
 modePathList = os.listdir(folderModePath)
 imgModeList = [cv2.imread(os.path.join(folderModePath, path)) for path in modePathList]
 
+# Preload user images
+print("Preloading User Images...")
+user_images = {}
+for user_id in userIds:
+    blob = bucket.get_blob(f'Images/{user_id}.png')
+    array = np.frombuffer(blob.download_as_string(), np.uint8)
+    user_images[user_id] = cv2.imdecode(array, cv2.IMREAD_COLOR)
+print("User Images Loaded")
 
-counter = 0
-id = -1
-imgUser = []
-
+# Main loop
 while True:
     success, img = cap.read()
     if not success:
@@ -64,13 +69,7 @@ while True:
 
         if matches[matchIndex]:
             id = userIds[matchIndex]
-
             userInfo = db.reference(f'Users/{id}').get()
-
-            # Get Image
-            blob = bucket.get_blob(f'Images/{id}.png')
-            array = np.frombuffer(blob.download_as_string(), np.uint8)
-            imgUser = cv2.imdecode(array, cv2.IMREAD_COLOR)
 
             y1, x2, y2, x1 = faceLoc
             y1, x2, y2, x1 = y1 * 4, x2 * 4, y2 * 4, x1 * 4
@@ -84,30 +83,26 @@ while True:
             cv2.putText(imgBackground, text, (bbox[0], bbox[1] - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-            cv2.putText(imgBackground, str(userInfo['name']), (1022, 126),
+            cv2.putText(imgBackground, str(userInfo['name']), (1012, 126),
                         cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
-            cv2.putText(imgBackground, str(userInfo['idnum']), (1022, 166),
+            cv2.putText(imgBackground, str(userInfo['idnum']), (1012, 166),
                         cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
-            cv2.putText(imgBackground, str(userInfo['last_ent']), (1022, 201),
+            cv2.putText(imgBackground, str(userInfo['last_ent']), (1012, 201),
                         cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
 
             # Resize imgUser to match the dimensions of the region of interest
-            imgUserResized = cv2.resize(imgUser, (135, 135))
+            imgUserResized = cv2.resize(user_images[id], (135, 135))
 
             # Assign imgUser to the appropriate region of interest in imgBackground
             imgBackground[109:109 + 135, 845:845 + 135] = imgUserResized
-
-
-        else:
-            userInfo = []
-            imgUser = []
-
 
     cv2.imshow("Face Attendance", imgBackground)
     key = cv2.waitKey(1) & 0xFF
     if key == ord('q') or key == ord('Q'):  # Check if 'q' or 'Q' is pressed
         break
 
-# Release the camera and close all windows
+# Release resources
 cap.release()
 cv2.destroyAllWindows()
+
+
