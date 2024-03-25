@@ -17,8 +17,7 @@ bucket = storage.bucket()
 
 # Initialize Video Capture
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FPS, 60)
-cap.set(cv2.CAP_PROP_BUFFERSIZE, 0)
+
 cap.set(3, 640)
 cap.set(4, 480)
 
@@ -26,11 +25,11 @@ cap.set(4, 480)
 imgBackground = cv2.imread('Resources/background.png')
 
 # Load encoded face data
-print("Loading Encoded File...")
+
 with open('scripts/EncodeFile.p', 'rb') as file:
     encodeListKnowsWithIds = pickle.load(file)
 encodeListKnown, userIds = encodeListKnowsWithIds
-print("Encode File Loaded")
+
 
 # Import mode images into a list
 folderModePath = 'Resources/Modes'
@@ -38,13 +37,12 @@ modePathList = os.listdir(folderModePath)
 imgModeList = [cv2.imread(os.path.join(folderModePath, path)) for path in modePathList]
 
 # Preload user images
-print("Preloading User Images...")
+
 user_images = {}
 for user_id in userIds:
     blob = bucket.get_blob(f'Images/{user_id}.png')
     array = np.frombuffer(blob.download_as_string(), np.uint8)
     user_images[user_id] = cv2.imdecode(array, cv2.IMREAD_COLOR)
-print("User Images Loaded")
 
 # Main loop
 while True:
@@ -74,8 +72,6 @@ while True:
             y1, x2, y2, x1 = faceLoc
             y1, x2, y2, x1 = y1 * 4, x2 * 4, y2 * 4, x1 * 4
             bbox = 55 + x1, 162 + y1, x2 - x1, y2 - y1
-
-            # Draw rectangle
             imgBackground = cvzone.cornerRect(imgBackground, bbox, rt=0)
 
             # Add text
