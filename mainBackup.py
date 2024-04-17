@@ -166,7 +166,7 @@ if __name__ == "__main__":
                                 imgUserB = cv2.imdecode(array, cv2.IMREAD_COLOR)
                                 break  # If image is found, break the loop
 
-                        if  imgUserB is not None:
+                        if imgUserB is not None:
                             imgUserResizedB = cv2.resize(imgUserB, (150, 150))
                             imgBackground[290:290 + 150, 845:845 + 150] = imgUserResizedB
 
