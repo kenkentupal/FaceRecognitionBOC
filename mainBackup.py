@@ -11,6 +11,12 @@ import multiprocessing
 import time
 from EncodeGenerator import generateEncodedData
 
+# Enable OpenCL acceleration for OpenCV
+cv2.ocl.setUseOpenCL(True)
+
+# Load the Haar cascade classifier for face detection
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
 # Initialize Video Capture
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FPS, 60)

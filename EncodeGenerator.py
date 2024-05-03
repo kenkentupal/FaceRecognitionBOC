@@ -13,6 +13,8 @@ def generateEncodedData():
     # Initialize Firebase
     cred = credentials.Certificate("serviceAccountKey.json")
 
+    #firebase_admin.initialize_app(cred, {      'databaseURL': "https://facialrecognition-4bee2-default-rtdb.firebaseio.com/",       'storageBucket': "facialrecognition-4bee2.appspot.com"   })
+
     bucket = storage.bucket()
 
     # Get the last modified time of the 'Images' folder

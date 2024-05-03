@@ -11,6 +11,12 @@ import multiprocessing
 import time
 from EncodeGenerator import generateEncodedData
 
+# Enable OpenCL acceleration for OpenCV
+cv2.ocl.setUseOpenCL(True)
+
+# Load the Haar cascade classifier for face detection
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
 # Initialize Video Capture
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FPS, 60)
@@ -110,14 +116,16 @@ if __name__ == "__main__":
                     # Get the person's name
                     id = userIds[matchIndex]
                     userInfo = db.reference(f'Users/{id}').get()
-                    name = str(userInfo['name'])
-                    idnum = str(userInfo['idnum'])
-                    type = str(userInfo['type'])
+                    fname = str(userInfo['fname'])
+                    lname = str(userInfo['lname'])
+                    email = str(userInfo['email'])
+                    userId = str(userInfo['userId'])
+                    faceinfo = str(userInfo['faceinfo'])
 
                     # Draw the corner rectangle
                     imgBackground = cvzone.cornerRect(imgBackground, bbox, rt=0)
 
-                    if userInfo['type'] == "employee":
+                    if str(userInfo['type']) == "Employee":
                         modeType = 2
                         imgBackground[44:44 + 633, 808:808 + 414] = imgModeList[modeType]
 
@@ -127,27 +135,23 @@ if __name__ == "__main__":
                             imgUserResized = cv2.resize(imgUser, (235, 235))
                             imgBackground[125:125 + 235, 895:895 + 235] = imgUserResized
 
-                        cv2.putText(imgBackground, name, (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_COMPLEX, 0.5,
+                        cv2.putText(imgBackground, fname +" "+lname, (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_COMPLEX, 0.5,
                                     (255, 255, 255), 1)
-                        cv2.putText(imgBackground, idnum, (bbox[0], bbox[1] - 30), cv2.FONT_HERSHEY_COMPLEX, 0.5,
+                        cv2.putText(imgBackground, email, (bbox[0], bbox[1] - 30), cv2.FONT_HERSHEY_COMPLEX, 0.5,
                                     (255, 255, 255), 1)
 
-                        (w, h), _ = cv2.getTextSize(userInfo['name'], cv2.FONT_HERSHEY_COMPLEX, 0.5, 1)
+                        (w, h), _ = cv2.getTextSize(userInfo['fname'] + " " + userInfo['lname'], cv2.FONT_HERSHEY_COMPLEX, 0.5, 1)
                         offset = (414 - w) // 2
-                        cv2.putText(imgBackground, str(userInfo['name']), (808 + offset, 423),
+                        cv2.putText(imgBackground, str(userInfo['fname']) + " " + str(userInfo['lname']), (808 + offset, 423),
                                     cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
 
-                        (w, h), _ = cv2.getTextSize(userInfo['idnum'], cv2.FONT_HERSHEY_COMPLEX, 0.5, 1)
+                        (w, h), _ = cv2.getTextSize(userInfo['email'], cv2.FONT_HERSHEY_COMPLEX, 0.5, 1)
                         offset = (414 - w) // 2
-                        cv2.putText(imgBackground, str(userInfo['idnum']), (808 + offset, 466),
+                        cv2.putText(imgBackground, str(userInfo['email']), (808 + offset, 466),
                                     cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
 
-                        (w, h), _ = cv2.getTextSize(userInfo['type'], cv2.FONT_HERSHEY_COMPLEX, 0.5, 1)
-                        offset = (414 - w) // 2
-                        cv2.putText(imgBackground, str(userInfo['type']), (808 + offset, 509),
-                                    cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
 
-                    else:
+                    elif str(userInfo['type']) == "Traveler":
                         modeType = 1
                         imgBackground[44:44 + 633, 808:808 + 414] = imgModeList[modeType]
 
@@ -160,34 +164,36 @@ if __name__ == "__main__":
                             imgUserB = None
                             # Fetch the secondary user image (replace 'second_folder' with the actual folder name)
                         for extension in ['png', 'jpg', 'jpeg']:
-                            blob = bucket.get_blob(f'Baggage/{"baggage1"+id}.{extension}')
+                            blob = bucket.get_blob(f'Baggage/{"baggage1" + id}.{extension}')
                             if blob:
                                 array = np.frombuffer(blob.download_as_string(), np.uint8)
                                 imgUserB = cv2.imdecode(array, cv2.IMREAD_COLOR)
+                                imgUserResizedB = cv2.resize(imgUserB, (150, 150))
+                                imgBackground[290:290 + 150, 845:845 + 150] = imgUserResizedB
                                 break  # If image is found, break the loop
-
-                        if  imgUserB is not None:
-                            imgUserResizedB = cv2.resize(imgUserB, (150, 150))
-                            imgBackground[290:290 + 150, 845:845 + 150] = imgUserResizedB
-
-                        for extension in ['png', 'jpg', 'jpeg']:
-                            blob = bucket.get_blob(f'Baggage/{"baggage2" + id}.{extension}')
-                            if blob:
-                                array = np.frombuffer(blob.download_as_string(), np.uint8)
-                                imgUserB = cv2.imdecode(array, cv2.IMREAD_COLOR)
-                                break  # If image is found, break the loop
+                        else:
+                            imgUserB = None  # If no image is found, set imgUserB to None
 
                         if imgUserB is not None:
-                                imgUserResizedB = cv2.resize(imgUserB, (150, 150))
-                                imgBackground[290:290 + 150, 1030:1030 + 150] = imgUserResizedB
+                            # Fetch the secondary user image (replace 'second_folder' with the actual folder name)
+                            for extension in ['png', 'jpg', 'jpeg']:
+                                blob = bucket.get_blob(f'Baggage/{"baggage2" + id}.{extension}')
+                                if blob:
+                                    array = np.frombuffer(blob.download_as_string(), np.uint8)
+                                    imgUserB = cv2.imdecode(array, cv2.IMREAD_COLOR)
+                                    imgUserResizedB = cv2.resize(imgUserB, (150, 150))
+                                    imgBackground[290:290 + 150, 1030:1030 + 150] = imgUserResizedB
+                                    break  # If image is found, break the loop
+                            else:
+                                imgUserB = None  # If no image is found, set imgUserB to None
 
                         # Add the person's name at the top of the rectangle
-                        cv2.putText(imgBackground, name, (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_COMPLEX, 0.5,
+                        cv2.putText(imgBackground, fname + " " + lname, (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_COMPLEX, 0.5,
                                     (255, 255, 255), 1)
 
-                        cv2.putText(imgBackground, str(userInfo['name']), (1022, 126),
+                        cv2.putText(imgBackground, str(userInfo['fname']) +" "+str(userInfo['lname']), (1022, 126),
                                     cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
-                        cv2.putText(imgBackground, str(userInfo['idnum']), (1022, 166),
+                        cv2.putText(imgBackground, str(userInfo['email']), (1022, 166),
                                     cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
                         cv2.putText(imgBackground, str(userInfo['type']), (1022, 201),
                                     cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
