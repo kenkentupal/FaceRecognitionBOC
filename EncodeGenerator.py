@@ -85,7 +85,8 @@ def generateEncodedData():
         encodeListKnown, userIds = load_existing_encodings()
 
         #print("Retrieving image list from Firebase Storage...")
-        blobs = list(bucket.list_blobs(prefix='Images/'))
+        blobs = list(bucket.list_blobs(prefix='Passport/'))
+
         current_user_ids = [blob.name.split('/')[-1].split('.')[0] for blob in blobs]
 
         #print("Identifying deleted user IDs...")
@@ -94,8 +95,7 @@ def generateEncodedData():
             print("Deleted user IDs:")
             for user_id in deleted_user_ids:
                 print(user_id)
-        else:
-            print("No user IDs were deleted.")
+
 
         valid_indices = [i for i, user_id in enumerate(userIds) if user_id in current_user_ids]
         encodeListKnown = [encodeListKnown[i] for i in valid_indices]
@@ -104,7 +104,7 @@ def generateEncodedData():
         new_user_ids = [user_id for user_id in current_user_ids if user_id not in userIds]
 
         if not new_user_ids:
-            print("No new images to encode.")
+            #print("No new images to encode.")
             with open("scripts/EncodeFile.p", 'wb') as file:
                 pickle.dump([encodeListKnown, userIds], file)
             #print("Updated encoded data saved to file.")
