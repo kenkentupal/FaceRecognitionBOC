@@ -75,11 +75,28 @@ def find_encodings(imagesList):
             print(f"Error encoding face: {e}")
     return encodeList
 
+def delete_images_with_underscore_and_dash():
+    try:
+        bucket = storage.bucket()
+        blobs = bucket.list_blobs()
+        for blob in tqdm(blobs, desc="Deleting images with underscore or dash", unit=" image"):
+            if '_' in blob.name or '-' in blob.name:
+                try:
+                    blob.delete()
+                    print(f"Deleted: {blob.name}")
+                except Exception as e:
+                    print(f"Error deleting image {blob.name}: {e}")
+    except Exception as e:
+        print(f"An error occurred while deleting images: {e}")
+
 def generateEncodedData():
     try:
         #print("Initializing Firebase...")
         initialize_firebase()
         bucket = storage.bucket()
+
+        # Delete images with underscores or dashes
+        delete_images_with_underscore_and_dash()
 
         #print("Loading existing encodings...")
         encodeListKnown, userIds = load_existing_encodings()
@@ -95,7 +112,6 @@ def generateEncodedData():
             print("Deleted user IDs:")
             for user_id in deleted_user_ids:
                 print(user_id)
-
 
         valid_indices = [i for i, user_id in enumerate(userIds) if user_id in current_user_ids]
         encodeListKnown = [encodeListKnown[i] for i in valid_indices]
