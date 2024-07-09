@@ -10,8 +10,7 @@ import multiprocessing
 import time
 from EncodeGenerator import generateEncodedData
 from collections import defaultdict
-from facenet_pytorch import MTCNN, InceptionResnetV1
-import torch
+
 
 
 # Enable OpenCL acceleration for OpenCV
@@ -24,12 +23,10 @@ def init_firebase():
         'databaseURL': "https://facialrecognition-4bee2-default-rtdb.firebaseio.com/",
         'storageBucket': "facialrecognition-4bee2.appspot.com"
     })
-    # Initialize MTCNN and InceptionResnetV1
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    mtcnn = MTCNN(keep_all=True, device=device)
-    resnet = InceptionResnetV1(pretrained='vggface2').eval().to(device)
-    bucket = storage.bucket()  # Retrieve the bucket instance
-    return bucket, mtcnn, resnet
+    return storage.bucket()
+
+
+
 
 
 def load_encoded_data():
@@ -126,7 +123,7 @@ def main():
 
     pygame.mixer.init()
 
-    bucket, mtcnn, resnet = init_firebase()  # Correctly receive bucket, mtcnn, and resnet
+    bucket = init_firebase()  # Correctly receive bucket, mtcnn, and resnet
 
     img_background = cv2.imread('Resources/background2.png')
     trace = cv2.imread('Resources/bgfront.png', cv2.IMREAD_UNCHANGED)
