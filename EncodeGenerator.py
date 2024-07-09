@@ -99,6 +99,10 @@ def generateEncodedData():
         # Delete images with underscores or dashes
         delete_images_with_underscore_and_dash()
 
+        # Ensure the 'scripts' directory exists
+        if not os.path.exists("scripts"):
+            os.makedirs("scripts")
+
         #print("Loading existing encodings...")
         encodeListKnown, userIds = load_existing_encodings()
 
