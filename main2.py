@@ -10,6 +10,9 @@ import multiprocessing
 import time
 from EncodeGenerator import generateEncodedData
 from collections import defaultdict
+from facenet_pytorch import MTCNN, InceptionResnetV1
+import torch
+
 
 # Enable OpenCL acceleration for OpenCV
 cv2.ocl.setUseOpenCL(True)
@@ -21,21 +24,23 @@ def init_firebase():
         'databaseURL': "https://facialrecognition-4bee2-default-rtdb.firebaseio.com/",
         'storageBucket': "facialrecognition-4bee2.appspot.com"
     })
-    return storage.bucket()
+    # Initialize MTCNN and InceptionResnetV1
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    mtcnn = MTCNN(keep_all=True, device=device)
+    resnet = InceptionResnetV1(pretrained='vggface2').eval().to(device)
+    bucket = storage.bucket()  # Retrieve the bucket instance
+    return bucket, mtcnn, resnet
 
 
 def load_encoded_data():
     try:
-        #print("Loading Encoded File...")
         with open('scripts/EncodeFile.p', 'rb') as file:
             encode_list_known_with_ids = pickle.load(file)
         encode_list_known, user_ids = encode_list_known_with_ids
-
         return encode_list_known, user_ids
     except (FileNotFoundError, pickle.UnpicklingError) as e:
         print(f"Error loading encoded data: {e}")
         return [], []
-
 
 def preload_user_images(bucket, user_ids):
     user_images = defaultdict(lambda: None)
@@ -66,7 +71,7 @@ def capture_frame(counter, mode_type, img, img_background, encode_list_known, us
     user_info = None
     img_user = None
     if counter == 0:
-        # Crop the sides of the image, keeping the top and bottom portions intact
+        # Crop the sides of the image
         img_height, img_width, _ = img.shape
         crop_width = img_width // 2
         start_x = (img_width - crop_width) // 2
@@ -75,57 +80,53 @@ def capture_frame(counter, mode_type, img, img_background, encode_list_known, us
 
         cv2.imwrite('captured_frame.jpg', cropped_img)
         img_s = cv2.imread("captured_frame.jpg")
-        face_cur_frame = face_recognition.face_locations(img_s)
-        encode_cur_frame = face_recognition.face_encodings(img_s, face_cur_frame)
+        face_cur_frame = face_recognition.face_locations(img_s)  # Use CNN model for better accuracy
+        encode_cur_frame = face_recognition.face_encodings(img_s, face_cur_frame, model='large')  # Use larger model
+
+        if not face_cur_frame or not encode_cur_frame:
+            return img_background, mode_type, user_info, img_user
 
         # Find the largest face
-        largest_face_index = None
-        largest_face_size = 0
-        for index, (top, right, bottom, left) in enumerate(face_cur_frame):
-            face_size = (right - left) * (bottom - top)
-            if face_size > largest_face_size:
-                largest_face_size = face_size
-                largest_face_index = index
+        largest_face_index = np.argmax([(right - left) * (bottom - top) for (top, right, bottom, left) in face_cur_frame])
 
-        if largest_face_index is not None:
-            encode_face = encode_cur_frame[largest_face_index]
-            matches = face_recognition.compare_faces(encode_list_known, encode_face)
-            face_dis = face_recognition.face_distance(encode_list_known, encode_face)
-            match_index = np.argmin(face_dis)
+        encode_face = encode_cur_frame[largest_face_index]
+        matches = face_recognition.compare_faces(encode_list_known, encode_face, tolerance=0.45)  # Adjust tolerance
+        face_dis = face_recognition.face_distance(encode_list_known, encode_face)
+        match_index = np.argmin(face_dis)
 
-            if matches[match_index] and face_dis[match_index] < 0.50:
-                user_id = user_ids[match_index]
-                img_user = user_images.get(user_id)
-                if img_user is not None:
-                    try:
-                        user_info = db.reference(f'ResultTable/{user_id}').get()
-                    except Exception as e:
-                        print(f"Error fetching user info for {user_id}: {e}")
-                        user_info = None
-                img_user_resized = cv2.resize(img_user, (235, 235))
-                img_background = cv2.imread('Resources/success.png')
-                img_background[125:360, 895:1130] = img_user_resized
-                mode_type = 2
-                sound_effect = pygame.mixer.Sound('Resources/Sound/success.mp3')
-                sound_effect.play()
-            else:
-                img_background = cv2.imread('Resources/tryagain.png')
-                sound_effect = pygame.mixer.Sound('Resources/Sound/denied.mp3')
-                sound_effect.play()
+        if matches[match_index] and face_dis[match_index] < 0.4: #threshhold
+            user_id = user_ids[match_index]
+            img_user = user_images.get(user_id)
+            if img_user is not None:
+                try:
+                    user_info = db.reference(f'ResultTable/{user_id}').get()
+                except Exception as e:
+                    print(f"Error fetching user info for {user_id}: {e}")
+                    user_info = None
+            img_user_resized = cv2.resize(img_user, (235, 235))
+            img_background = cv2.imread('Resources/success.png')
+            img_background[125:360, 895:1130] = img_user_resized
+            mode_type = 2
+            sound_effect = pygame.mixer.Sound('Resources/Sound/success.mp3')
+            sound_effect.play()
+        else:
+            img_background = cv2.imread('Resources/tryagain.png')
+            sound_effect = pygame.mixer.Sound('Resources/Sound/denied.mp3')
+            sound_effect.play()
     return img_background, mode_type, user_info, img_user
 
 
 def main():
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
     cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FPS, 60)
+    cap.set(cv2.CAP_PROP_FPS, 30)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 0)
     cap.set(3, 640)
     cap.set(4, 360)
 
     pygame.mixer.init()
 
-    bucket = init_firebase()
+    bucket, mtcnn, resnet = init_firebase()  # Correctly receive bucket, mtcnn, and resnet
 
     img_background = cv2.imread('Resources/background2.png')
     trace = cv2.imread('Resources/bgfront.png', cv2.IMREAD_UNCHANGED)
@@ -137,7 +138,7 @@ def main():
     mode_path_list = os.listdir(folder_mode_path)
     img_mode_list = [cv2.imread(os.path.join(folder_mode_path, path)) for path in mode_path_list]
 
-    user_images = preload_user_images(bucket, user_ids)
+    user_images = preload_user_images(bucket, user_ids)  # Correctly call the function with bucket
 
     queue = multiprocessing.Queue()
     reload_process = multiprocessing.Process(target=reload_encoded_data, args=(queue,))
@@ -184,9 +185,8 @@ def main():
                 elif counter == 1:
                     img_background = cv2.imread('Resources/wait1.png')
                 elif counter == 0:
-                    img_background, mode_type, user_info, img_user = capture_frame(counter, mode_type, img,
-                                                                                   img_background, encode_list_known,
-                                                                                   user_ids, user_images)
+                    img_background, mode_type, user_info, img_user = capture_frame(counter, mode_type, img, img_background, encode_list_known, user_ids, user_images)
+
 
                 if counter == -3:
                     counter = 4

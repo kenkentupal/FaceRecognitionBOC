@@ -79,11 +79,12 @@ def delete_images_with_underscore_and_dash():
     try:
         bucket = storage.bucket()
         blobs = bucket.list_blobs()
-        for blob in tqdm(blobs, desc="Deleting images with underscore or dash", unit=" image"):
+        for blob in blobs:
             if '_' in blob.name or '-' in blob.name:
                 try:
                     blob.delete()
-                    print(f"Deleted: {blob.name}")
+                    # Print only if the image is successfully deleted
+                    print(f"Successfully deleted: {blob.name}")
                 except Exception as e:
                     print(f"Error deleting image {blob.name}: {e}")
     except Exception as e:
