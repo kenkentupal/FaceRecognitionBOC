@@ -1,15 +1,19 @@
 import os
 import sys
 import cv2
-import face_recognition
+import torch
 import pickle
 import firebase_admin
 import numpy as np
 from firebase_admin import credentials, storage
 from tqdm import tqdm
+from facenet_pytorch import InceptionResnetV1
 
 # Set a higher recursion limit
 sys.setrecursionlimit(4000)
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+facenet = InceptionResnetV1(pretrained='vggface2').eval().to(device)
 
 def initialize_firebase():
     try:
@@ -65,10 +69,11 @@ def find_encodings(imagesList):
     encodeList = []
     for img in tqdm(imagesList, desc="Encoding faces", unit=" face"):
         try:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            encodes = face_recognition.face_encodings(img)
-            if encodes:
-                encodeList.append(encodes[0])
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img_rgb_tensor = torch.tensor(img_rgb).permute(2, 0, 1).unsqueeze(0).float().to(device)
+            encodes = facenet(img_rgb_tensor).detach().cpu().numpy().flatten()
+            if encodes is not None:
+                encodeList.append(encodes)
             else:
                 print("No face found in the image")
         except Exception as e:
