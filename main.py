@@ -83,15 +83,16 @@ def capture_frame(counter, mode_type, img, img_background, encode_list_known, us
         if not face_cur_frame or not encode_cur_frame:
             return img_background, mode_type, user_info, img_user
 
+
         # Find the largest face
         largest_face_index = np.argmax([(right - left) * (bottom - top) for (top, right, bottom, left) in face_cur_frame])
 
         encode_face = encode_cur_frame[largest_face_index]
-        matches = face_recognition.compare_faces(encode_list_known, encode_face, tolerance=0.45)  # Adjust tolerance
+        matches = face_recognition.compare_faces(encode_list_known, encode_face, tolerance=0.40)  # Adjust tolerance
         face_dis = face_recognition.face_distance(encode_list_known, encode_face)
         match_index = np.argmin(face_dis)
 
-        if matches[match_index] and face_dis[match_index] < 0.4:  # Threshold
+        if matches[match_index] and face_dis[match_index] < 0.40:  # Threshold
             user_id = user_ids[match_index]
             img_user = user_images.get(user_id)
             if img_user is not None:
