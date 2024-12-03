@@ -1,15 +1,19 @@
 import os
 import sys
 import cv2
-import face_recognition
+import torch
 import pickle
 import firebase_admin
 import numpy as np
 from firebase_admin import credentials, storage
 from tqdm import tqdm
+from facenet_pytorch import InceptionResnetV1
 
 # Set a higher recursion limit
 sys.setrecursionlimit(4000)
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+facenet = InceptionResnetV1(pretrained='vggface2').eval().to(device)
 
 def initialize_firebase():
     try:
@@ -23,9 +27,9 @@ def initialize_firebase():
         print(f"Error initializing Firebase: {e}")
 
 def load_existing_encodings():
-    if os.path.exists("scripts/EncodeFile.p"):
+    if os.path.exists("../data/EncodeFile.p"):
         try:
-            with open("scripts/EncodeFile.p", 'rb') as file:
+            with open("../data/EncodeFile.p", 'rb') as file:
                 encodeListKnownWithIds = pickle.load(file)
                 return encodeListKnownWithIds[0], encodeListKnownWithIds[1]
         except Exception as e:
@@ -65,10 +69,11 @@ def find_encodings(imagesList):
     encodeList = []
     for img in tqdm(imagesList, desc="Encoding faces", unit=" face"):
         try:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            encodes = face_recognition.face_encodings(img)
-            if encodes:
-                encodeList.append(encodes[0])
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img_rgb_tensor = torch.tensor(img_rgb).permute(2, 0, 1).unsqueeze(0).float().to(device)
+            encodes = facenet(img_rgb_tensor).detach().cpu().numpy().flatten()
+            if encodes is not None:
+                encodeList.append(encodes)
             else:
                 print("No face found in the image")
         except Exception as e:
@@ -99,9 +104,9 @@ def generateEncodedData():
         # Delete images with underscores or dashes
         delete_images_with_underscore_and_dash()
 
-        # Ensure the 'scripts' directory exists
-        if not os.path.exists("scripts"):
-            os.makedirs("scripts")
+        # Ensure the 'data' directory exists
+        if not os.path.exists("../data"):
+            os.makedirs("../data")
 
         #print("Loading existing encodings...")
         encodeListKnown, userIds = load_existing_encodings()
@@ -126,7 +131,7 @@ def generateEncodedData():
 
         if not new_user_ids:
             #print("No new images to encode.")
-            with open("scripts/EncodeFile.p", 'wb') as file:
+            with open("../data/EncodeFile.p", 'wb') as file:
                 pickle.dump([encodeListKnown, userIds], file)
             #print("Updated encoded data saved to file.")
             return
@@ -151,7 +156,7 @@ def generateEncodedData():
             print(f"{user_id}")
 
         print("Saving encoded data to file...")
-        with open("scripts/EncodeFile.p", 'wb') as file:
+        with open("../data/EncodeFile.p", 'wb') as file:
             pickle.dump([encodeListKnown, userIds], file)
         print("Encoded data saved to file.")
 

@@ -7,7 +7,7 @@ import time
 pygame.mixer.init()
 
 # Load the sound file
-pygame.mixer.music.load("Resources/Sound/alam.mp3")
+pygame.mixer.music.load("../assets/sound/alam.mp3")
 
 def find_arduino():
     ports = serial.tools.list_ports.comports()
